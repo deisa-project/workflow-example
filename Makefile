@@ -77,7 +77,7 @@ py-run: py-venv
 	$(MPIRUN) -n $(NP) $(PY) $(PY_MAIN) $(RUN_ARGS_PY)
 
 py-run-insitu: py-venv py-install
-	bash ./launch-insitu-python.sh 
+	bash ./launch-scripts/launch-insitu-python-local.sh 
 
 py-clean:
 	rm -rf python/frames
