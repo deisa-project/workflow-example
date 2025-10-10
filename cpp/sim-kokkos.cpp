@@ -30,10 +30,14 @@
 
 #include <Kokkos_Core.hpp>
 #include <algorithm>
+#include <assert.h>
 #include <errno.h>
 #include <iostream>
+#include <limits.h>
 #include <math.h>
 #include <mpi.h>
+#include <pybind11/embed.h>
+#include <pybind11/numpy.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -518,13 +522,27 @@ static void save_frame(int step, MPI_Comm cart, double *U, double *V, int nx,
 int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
   Kokkos::initialize(argc, argv);
-  printf("Execution space: %s\n", typeid(Kokkos::DefaultExecutionSpace).name());
-  Kokkos::print_configuration(std::cout);
+  namespace py = pybind11;
+  // printf("Execution space: %s\n",
+  // typeid(Kokkos::DefaultExecutionSpace).name());
+  //  Kokkos::print_configuration(std::cout);
   {
     MPI_Comm world = MPI_COMM_WORLD;
     int rank, size;
     MPI_Comm_rank(world, &rank);
     MPI_Comm_size(world, &size);
+
+    // ---- Doreisa integration ----
+    py::scoped_interpreter guard{};
+    py::dict locals;
+    locals["rank"] = rank;
+
+    py::module_ sim_node = py::module_::import("doreisa.simulation_node");
+    py::object Client = sim_node.attr("Client");
+    py::object client_instance = Client();
+    py::exec("print(f'[SIM, rank {rank}] connected to doreisa client')",
+             py::globals(), locals);
+    // -----------------------------
 
     Config cfg;
     parse_args(&cfg, argc, argv, rank);
@@ -575,6 +593,29 @@ int main(int argc, char **argv) {
       // swap Kokkos views
       std::swap(U, Un);
       std::swap(V, Vn);
+
+      // ---- Doreisa integration ----
+
+      py::tuple coords_tuple = py::make_tuple(coords[0], coords[1]);
+
+      py::array_t<double> U_py({ny + 2, nx + 2}, U.data());
+      py::array_t<double> V_py({ny + 2, nx + 2}, V.data());
+
+      py::object Uslice = U_py.attr("__getitem__")(
+          py::make_tuple(py::slice(1, -1, 1), py::slice(1, -1, 1)));
+
+      py::object Vslice = V_py.attr("__getitem__")(
+          py::make_tuple(py::slice(1, -1, 1), py::slice(1, -1, 1)));
+
+      client_instance.attr("add_chunk")(
+          "U", coords_tuple, py::make_tuple(cfg.py, cfg.px), size, step, Uslice,
+          py::arg("store_externally") = false);
+
+      client_instance.attr("add_chunk")(
+          "V", coords_tuple, py::make_tuple(cfg.py, cfg.px), size, step, Vslice,
+          py::arg("store_externally") = false);
+
+      // -----------------------------
 
       if (cfg.viz_every > 0 && (step % cfg.viz_every == 0))
         save_frame(step, cart, U.data(), V.data(), nx, ny, cfg.px, cfg.py,

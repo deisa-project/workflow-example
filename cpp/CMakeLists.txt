@@ -12,15 +12,31 @@ set(Kokkos_DIR "/usr/local/lib/cmake/Kokkos")
 find_package(Kokkos REQUIRED)
 find_package(MPI REQUIRED)
 
+# --- Add pybind11 (try system first) ---
+find_package(pybind11 REQUIRED)
+
 # Add executable
 add_executable(sim-kokkos sim-kokkos.cpp)
 
-# Link Kokkos
-target_link_libraries(sim-kokkos MPI::MPI_CXX Kokkos::kokkos)
+# Include Python headers (for completeness)
+target_include_directories(sim-kokkos PRIVATE ${Python3_INCLUDE_DIRS})
 
-# Enable CUDA and OpenMP for your target
-target_compile_definitions(sim-kokkos PRIVATE KOKKOS_ENABLE_CUDA=ON KOKKOS_ENABLE_OPENMP=ON)
+# --- Link all dependencies ---
+target_link_libraries(sim-kokkos
+    PRIVATE
+        MPI::MPI_CXX
+        Kokkos::kokkos
+        pybind11::embed
+        ${Python3_LIBRARIES}
+)
 
-# Make sure we use the same architecture as Kokkos was built for
-target_compile_options(sim-kokkos PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--gpu-architecture=sm_90>)
+# --- Enable Kokkos features ---
+target_compile_definitions(sim-kokkos PRIVATE
+    KOKKOS_ENABLE_CUDA=ON
+    KOKKOS_ENABLE_OPENMP=ON
+)
 
+# --- GPU Architecture ---
+target_compile_options(sim-kokkos PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--gpu-architecture=sm_90>
+)
