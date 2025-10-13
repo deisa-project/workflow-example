@@ -1,32 +1,38 @@
-// Gray–Scott reaction–diffusion (2D) with MPI halo exchange (C)
-// -----------------------------------------------------------------------------
-// Intent: closely mirror the Python mpi4py version's logic & update order.
-// - Same parameters & defaults (see CLI flags below)
-// - Same domain decomposition: 2D Cartesian grid with (py x px) ranks
-// - Same ghost layout: arrays sized (ny+2) x (nx+2) with 1-cell halo
-// - Same halo exchange pattern + optional Neumann (zero-flux) on physical edges
-// - Same seeding options: local/global square via fractional coordinates
-// - Same update order each step: exchange ghosts U, exchange ghosts V, update,
-//   swap, optional gather+save frame, optional progress print from rank 0.
-// Differences vs Python for visualization only:
-// - Frames are saved as PGM (8-bit grayscale) instead of PNG; "both" writes
-//   two images per step with suffix _U / _V. You can convert to GIF with e.g.:
-//     convert frames/step_*.pgm out.gif
-//   (the --viz-gif flag will just print a hint on rank 0.)
-// -----------------------------------------------------------------------------
-// Build:
-//   cmake \
-//  -DCMAKE_CXX_STANDARD=20 \
-//  -DKokkos_ENABLE_OPENMP=ON \
-//  -DKokkos_ENABLE_CUDA=ON \
-//  -DKokkos_ARCH_{YOUR_ARCH}=ON
-//
-//   make
-// -----------------------------------------------------------------------------
-// Run (example):
-//   mpirun -n 4 sim_kokkos --steps 2000 --print-every 50 --seed-mode local
-//   --periodic --viz-every 50 --viz-gif
-// -----------------------------------------------------------------------------
+/*
+================================================================================
+ Gray–Scott Reaction–Diffusion (2D) Simulation
+================================================================================
+A fully distributed Gray–Scott model implemented with:
+
+  • **MPI** for domain decomposition and halo exchange
+  • **Kokkos** for portable CPU/GPU parallelism
+  • **PyBind11** for integration with the Python-based Doreisa framework
+
+The implementation mirrors the logic of the Python mpi4py version:
+  - same halo exchange ordering (U then V)
+  - same update rule and seeding pattern
+  - same optional visualization output
+
+--------------------------------------------------------------------------------
+ Build Example (CMake)
+--------------------------------------------------------------------------------
+  cmake \
+    -DCMAKE_CXX_STANDARD=20 \
+    -DKokkos_ENABLE_OPENMP=ON \
+    -DKokkos_ENABLE_CUDA=ON \
+    -DKokkos_ARCH_{YOUR_ARCH}=ON
+  make
+
+--------------------------------------------------------------------------------
+ Run Example
+--------------------------------------------------------------------------------
+  mpirun -n 4 sim_kokkos \
+    --steps 2000 --print-every 50 \
+    --seed-mode local --periodic \
+    --viz-every 50 --viz-gif
+
+================================================================================
+*/
 
 #include <Kokkos_Core.hpp>
 #include <algorithm>
@@ -124,6 +130,7 @@ static void set_defaults(Config *c) {
 
 static int streq(const char *a, const char *b) { return strcmp(a, b) == 0; }
 
+// Parse simple CLI arguments (only rank 0 prints help)
 static void parse_args(Config *c, int argc, char **argv, int rank) {
   set_defaults(c);
   for (int i = 1; i < argc; ++i) {
@@ -190,7 +197,7 @@ static void parse_args(Config *c, int argc, char **argv, int rank) {
 }
 
 // -----------------------------------------------
-// Indexing helpers for (ny+2) x (nx+2) row-major arrays
+// Indexing helper for halo layout (row-major, includes ghost cells)
 // -----------------------------------------------
 #define AT(A, nx, i, j) (A[((i) * ((nx) + 2)) + (j)]) // 0..ny+1, 0..nx+1
 

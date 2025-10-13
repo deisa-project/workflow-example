@@ -45,7 +45,7 @@ export OMP_PLACES=threads
 # Run the simulation under MPI
 mpirun --merge-stderr-to-stdout -n 2 \
   -x PATH \
-  "$PROJECT_ROOT/cpp/cpu/sim-doreisa" \
+  "$PROJECT_ROOT/cpp/gpu/sim-kokkos-doreisa" \
   --steps 10 --print-every 1 --seed-mode local --periodic --viz-every 1 --viz-gif
 
 wait "$ANALYTICS_PID"
