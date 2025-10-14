@@ -12,7 +12,7 @@ The repository includes standalone and Doreisa-enabled variants, as well as read
 |----------|-----------|-----------|----------|
 | **C (CPU)** | C | Basic CPU implementation with MPI | `c/src/sim.c` |
 | **C++ + Doreisa** | C++20 | Adds Doreisa in-situ analytics support | `cpp/cpu/sim_doreisa.cpp` |
-| **C++ + Kokkos (GPU)** | C++20 | GPU acceleration using Kokkos | `cpp/gpu/sim_kokkos.cpp` |
+| **C++ + Kokkos (GPU)** | C++20 | GPU acceleration using Kokkos | `cpp/gpu/sim_kokkos-doreisa.cpp` |
 | **Python (CPU)** | Python 3 | CPU simulation using NumPy | `python/sim.py` |
 | **Python + Doreisa** | Python 3 | Adds in-situ analytics via Doreisa | `python/sim-doreisa.py` |
 
@@ -50,8 +50,6 @@ The repository includes standalone and Doreisa-enabled variants, as well as read
 
 ---
 
-
-
 ## 📊 In-Situ Analytics (`analytics/`)
 
 The **analytics** processes simulation data as it runs using **Doreisa’s API**.
@@ -75,14 +73,25 @@ All versions can be launched using the provided shell scripts in `launch-scripts
 
 ### 🧩 Example
 ```
-#TODO
+bash launch-scripts/launch-insitu-cpp-kokkos-local.sh
 ```
 ---
 ### 📈 Output
 
 During execution, the analytics prints progress and timing information like:
 ```
-#TODO
+Analytics Initialized
+[SIM, rank 1] connected to doreisa client
+[SIM, rank 0] connected to doreisa client
+[step      0] ranks=2 grid=2x1 N=512x256 local=256x256 Vsum=1.271578e+05 elapsed=0.02s GSS_time=1.38ms halo_time=0.06ms
+[ANALYTICS] Average at timestep 0: V=0.01893053523662347, U=0.9701366492501763
+[step      1] ranks=2 grid=2x1 N=512x256 local=256x256 Vsum=1.272115e+05 elapsed=0.04s GSS_time=1.24ms halo_time=0.06ms
+[ANALYTICS] Average at timestep 1: V=0.018002955605113495, U=0.9705465046278077
+[step      2] ranks=2 grid=2x1 N=512x256 local=256x256 Vsum=1.272645e+05 elapsed=0.06s GSS_time=1.14ms halo_time=0.05ms
+[ANALYTICS] Average at timestep 2: V=0.017169531188245785, U=0.970950778183183
+[step      3] ranks=2 grid=2x1 N=512x256 local=256x256 Vsum=1.273159e+05 elapsed=1.28s GSS_time=1.12ms halo_time=0.04ms
+[ANALYTICS] Average at timestep 3: V=0.016425385413415462, U=0.9713431944620565
+...
 ```
 ---
 
