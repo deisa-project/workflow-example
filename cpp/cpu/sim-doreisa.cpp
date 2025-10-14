@@ -16,11 +16,7 @@ The implementation mirrors the logic of the Python mpi4py version:
 --------------------------------------------------------------------------------
  Build Example (CMake)
 --------------------------------------------------------------------------------
-  cmake \
-    -DCMAKE_CXX_STANDARD=20 \
-    -DKokkos_ENABLE_OPENMP=ON \
-    -DKokkos_ENABLE_CUDA=ON \
-    -DKokkos_ARCH_{YOUR_ARCH}=ON
+  cmake .
   make
 
 --------------------------------------------------------------------------------
@@ -236,9 +232,8 @@ static void seed_global_fraction(double *U, double *V, int nx, int ny, int px,
 }
 
 // Initialize U=1, V=0 + small noise + seed square
-static void initialize_cpu(double *Udata, double *Vdata, int nx, int ny, int rx,
-                           int ry, int px, int py, rng64 *rng,
-                           const Config *cfg) {
+static void initialize(double *Udata, double *Vdata, int nx, int ny, int rx,
+                       int ry, int px, int py, rng64 *rng, const Config *cfg) {
   int total = (nx + 2) * (ny + 2);
   for (int idx = 0; idx < total; ++idx) {
     Udata[idx] = 1.0;
@@ -513,8 +508,10 @@ int main(int argc, char **argv) {
   namespace py = pybind11;
 
   {
-    int rank;
+    MPI_Comm world = MPI_COMM_WORLD;
+    int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     // ---- Doreisa integration ----
     py::scoped_interpreter guard{};
@@ -533,39 +530,103 @@ int main(int argc, char **argv) {
 
     // MPI Cartesian topology setup (same as before)
     int dims[2] = {cfg.py, cfg.px};
-    int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Dims_create(size, 2, dims);
     cfg.py = dims[0];
     cfg.px = dims[1];
     int periods[2] = {cfg.periodic, cfg.periodic};
     MPI_Comm cart;
-    MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 1, &cart);
+    MPI_Cart_create(world, 2, dims, periods, 1, &cart);
     int coords[2];
     MPI_Cart_coords(cart, rank, 2, coords);
     int ry = coords[0], rx = coords[1];
     int nx = cfg.nx_local, ny = cfg.ny_local;
+    int NX = cfg.px * nx, NY = cfg.py * ny;
 
     size_t total = (size_t)(nx + 2) * (ny + 2);
     std::vector<double> U(total), V(total), Un(total), Vn(total);
 
     rng64 rng;
     rng_seed(&rng, cfg.seed + rank);
-    initialize_cpu(U.data(), V.data(), nx, ny, rx, ry, cfg.px, cfg.py, &rng,
-                   &cfg);
+    initialize(U.data(), V.data(), nx, ny, rx, ry, cfg.px, cfg.py, &rng, &cfg);
 
     update_ghosts(cart, U.data(), nx, ny, cfg.periodic);
     update_ghosts(cart, V.data(), nx, ny, cfg.periodic);
 
+    if (cfg.viz_every > 0)
+      save_frame(0, cart, U.data(), V.data(), nx, ny, cfg.px, cfg.py,
+                 cfg.viz_field, cfg.viz_outdir, cfg.viz_vmin, cfg.viz_vmax);
+
+    double t0 = MPI_Wtime();
     for (int step = 0; step < cfg.steps; ++step) {
+      double halo_start = MPI_Wtime();
       update_ghosts(cart, U.data(), nx, ny, cfg.periodic);
       update_ghosts(cart, V.data(), nx, ny, cfg.periodic);
+      double halo_end = MPI_Wtime();
 
+      double gss_start = MPI_Wtime();
       step_gray_scott_cpu(U.data(), V.data(), Un.data(), Vn.data(), nx, ny,
                           cfg.Du, cfg.Dv, cfg.F, cfg.k, cfg.dt);
+      double gss_end = MPI_Wtime();
 
       std::swap(U, Un);
       std::swap(V, Vn);
+
+      // ---- Doreisa integration ----
+
+      py::tuple coords_tuple = py::make_tuple(coords[0], coords[1]);
+
+      py::array_t<double> U_py({ny + 2, nx + 2}, U.data());
+      py::array_t<double> V_py({ny + 2, nx + 2}, V.data());
+
+      py::object Uslice = U_py.attr("__getitem__")(
+          py::make_tuple(py::slice(1, -1, 1), py::slice(1, -1, 1)));
+
+      py::object Vslice = V_py.attr("__getitem__")(
+          py::make_tuple(py::slice(1, -1, 1), py::slice(1, -1, 1)));
+
+      client_instance.attr("add_chunk")(
+          "U", coords_tuple, py::make_tuple(cfg.py, cfg.px), size, step, Uslice,
+          py::arg("store_externally") = false);
+
+      client_instance.attr("add_chunk")(
+          "V", coords_tuple, py::make_tuple(cfg.py, cfg.px), size, step, Vslice,
+          py::arg("store_externally") = false);
+
+      // -----------------------------
+
+      if (cfg.viz_every > 0 && (step % cfg.viz_every == 0))
+        save_frame(step, cart, U.data(), V.data(), nx, ny, cfg.px, cfg.py,
+                   cfg.viz_field, cfg.viz_outdir, cfg.viz_vmin, cfg.viz_vmax);
+
+      if (cfg.print_every > 0 && (step % cfg.print_every == 0)) {
+        MPI_Barrier(cart);
+        double local_sum = 0.0;
+        for (int i = 1; i <= ny; ++i)
+          for (int j = 1; j <= nx; ++j)
+            local_sum += AT(U.data(), nx, i, j); // U is current after swap
+        double global_sum = 0.0;
+        MPI_Allreduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, cart);
+        if (rank == 0) {
+          double elapsed = MPI_Wtime() - t0;
+          double gss_ms = (gss_end - gss_start) * 1e3;
+          double halo_ms = (halo_end - halo_start) * 1e3;
+          printf("[step %6d] ranks=%d grid=%dx%d N=%dx%d local=%dx%d Vsum=%.6e "
+                 "elapsed=%.2fs GSS_time=%.2fms halo_time=%.2fms\n",
+                 step, size, cfg.py, cfg.px, NY, NX, ny, nx, global_sum,
+                 elapsed, gss_ms, halo_ms);
+          fflush(stdout);
+        }
+      }
+    }
+
+    MPI_Barrier(cart);
+    if (rank == 0) {
+      if (cfg.viz_gif && cfg.viz_every > 0) {
+        printf("[viz] Frames written to %s (PGM).\n", cfg.viz_outdir);
+        printf("[viz] To assemble a GIF: convert %s/step_*.pgm out.gif\n",
+               cfg.viz_outdir);
+      }
+      printf("DONE.\n");
     }
 
     MPI_Comm_free(&cart);
