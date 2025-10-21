@@ -16,38 +16,6 @@
         "type": "github"
       }
     },
-    "nixpkgs-dask": {
-      "locked": {
-        "lastModified": 1718401244,
-        "narHash": "sha256-kMWEwi9U0kOzZLNNaC3NKe/XVO/fo6hyKjq5pBqfrnQ=",
-        "owner": "nixOS",
-        "repo": "nixpkgs",
-        "rev": "a42717b875f8d9da831ed7a8ceab1dc986ce518b",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nixOS",
-        "repo": "nixpkgs",
-        "rev": "a42717b875f8d9da831ed7a8ceab1dc986ce518b",
-        "type": "github"
-      }
-    },
-    "nixpkgs-ray": {
-      "locked": {
-        "lastModified": 1750327579,
-        "narHash": "sha256-4IYss9musbNYgiqh71CghwD73LGMSpwQ6cnX7+84Cf8=",
-        "owner": "nixOS",
-        "repo": "nixpkgs",
-        "rev": "4f6c942f7a68ee2c05832531d42370c6268e7ff1",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nixOS",
-        "repo": "nixpkgs",
-        "rev": "4f6c942f7a68ee2c05832531d42370c6268e7ff1",
-        "type": "github"
-      }
-    },
     "parts": {
       "inputs": {
         "nixpkgs-lib": [
@@ -71,8 +39,6 @@
     "root": {
       "inputs": {
         "nixpkgs": "nixpkgs",
-        "nixpkgs-dask": "nixpkgs-dask",
-        "nixpkgs-ray": "nixpkgs-ray",
         "parts": "parts",
         "systems": "systems"
       }
