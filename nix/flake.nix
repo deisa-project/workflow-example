@@ -32,7 +32,7 @@
                         pyShortVersion = "cp${builtins.replaceStrings [ "." ] [ "" ] python.pythonVersion}";
                         hashes = {
                           x86_64-linux = "sha256-JSpHHor7kYsQXNv/tMvrsBQ7qtdaBsj/zeJ6wxdXnMs=";
-                          aarch64-linux = "";
+                          aarch64-linux = "sha256-1u1tGC4l1vdxedx3vJenScgXZbE8tnGkbbMgMCk4lmM=";
                           aarch64-darwin = "";
                         };
                       in 
