@@ -79,6 +79,9 @@ py-run: py-venv
 py-run-insitu: py-venv py-install
 	bash ./launch-scripts/launch-insitu-python-local.sh 
 
+py-run-nix: 
+	bash ./launch-scripts/launch-insitu-python-local.sh 
+
 py-clean:
 	rm -rf python/frames
 

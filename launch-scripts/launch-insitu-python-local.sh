@@ -11,23 +11,23 @@ export PS4='+ $(date "+%F %T") ${BASH_SOURCE##*/}:${LINENO}: '
 PROJECT_ROOT="$(cd -- "$(dirname -- "$0")/.." && pwd -P)"
 cd $PROJECT_ROOT
 VENV="$PROJECT_ROOT/.doreisa-env"
-PY="$VENV/bin/python"
-PIP="$VENV/bin/pip"
+export PYTHONWARNINGS=ignore
 
-if [[ ! -d "$VENV" ]]; then
-  python3 -m venv "$VENV"
+# --- Select Python environment ---
+if [[ -d "$VENV" ]]; then
+  echo "[insitu] Using Python virtualenv at $VENV"
+  export VIRTUAL_ENV="$VENV"
+  export PATH="$VENV/bin:$PATH"
+  PY="$VENV/bin/python"
+elif [[ "${USE_NIX:-0}" == "1" ]]; then
+  echo "[insitu] Using nix flake"
+  PY="python3"
+else
+  echo "Error: No virtualenv found at $VENV and nix not detected." >&2
+  echo "Either create the venv or use the nix flake." >&2
+  exit 1
 fi
 
-# Use the venv's tools
-export VIRTUAL_ENV="$VENV"
-export PATH="$VENV/bin:$PATH"
-# silence all warnings
-export PYTHONWARNINGS=ignore  
-
-# Make sure Ray we call is the one from the venv
-# Sanity Check
-# command -v ray
-# command -v python
 
 # Stop Ray on exit no matter what
 cleanup() {
