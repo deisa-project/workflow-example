@@ -9,7 +9,7 @@ export PS4='+ $(date "+%F %T") ${BASH_SOURCE##*/}:${LINENO}: '
 
 PROJECT_ROOT="$(cd -- "$(dirname -- "$0")/.." && pwd -P)"
 cd $PROJECT_ROOT
-VENV="$PROJECT_ROOT/.doreisa-env"
+VENV="$PROJECT_ROOT/python/.venv"
 PY="$VENV/bin/python"
 PIP="$VENV/bin/pip"
 

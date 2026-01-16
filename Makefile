@@ -9,7 +9,7 @@ C_SRC     := c/src/sim.c
 C_BIN     := c/sim
 
 # ---- Python config ----
-PY_VENV   := .doreisa-env
+PY_VENV   := python/.venv
 PY        := $(PY_VENV)/bin/python
 PIP       := $(PY_VENV)/bin/pip
 PY_MAIN   := python/sim.py
@@ -36,8 +36,7 @@ help:
 	@echo "  c-run        - run C sim with preset args"
 	@echo "  c-gif        - GIF from c/frames/*.pgm"
 	@echo "  c-clean      - remove C binary and c/frames"
-	@echo "  py-venv      - create .doreisa-env if missing"
-	@echo "  py-install   - pip install python/requirements.txt (if present)"
+	@echo "  py-install   - uv sync --directory python (uses pyproject.tml)"
 	@echo "  py-run       - run Python sim with preset args (no activation needed)"
 	@echo "  py-gif       - GIF from python/frames/*.png"
 	@echo "  demo         - run both C and Python demos"
@@ -60,26 +59,30 @@ c-clean:
 	rm -rf c/frames
 
 # ===== Python targets =====
-py-venv:
-	test -d $(PY_VENV) || python3 -m venv $(PY_VENV)
-
-py-install: py-venv
-	@mkdir -p .logs
-	@if [ -f python/requirements.txt ]; then \
-	  $(PIP) install -U pip        > .logs/pip-install.log 2>&1; \
-	  $(PIP) install -r python/requirements.txt >> .logs/pip-install.log 2>&1; \
+# create and install venv using uv
+py-install:
+	@mkdir -p python/.logs
+	@if [ -f python/pyproject.toml ]; then \
+	  uv sync --directory python >> python/.logs/uv-install.log 2>&1; \
 	else \
-	  echo "No python/requirements.txt found; skipping installs."; \
+	  echo "No python/pyproject.toml found; skipping installs."; \
 	fi
 
 # python version already creates the GIF if --viz-gif is given
-py-run: py-venv
+py-run-sim: py-install
 	$(MPIRUN) -n $(NP) $(PY) $(PY_MAIN) $(RUN_ARGS_PY)
 
-py-run-insitu: py-venv py-install
+py-run-insitu: py-install
+	@if [ -z "$$VIRTUAL_ENV" ]; then \
+		echo "ERROR: No Python virtual environment is active."; \
+		echo ""; \
+		echo "Activate it first:"; \
+		echo "  source python/.env/bin/activate"; \
+		exit 1; \
+	fi
 	bash ./launch-scripts/launch-insitu-python-local.sh 
 
-py-run-nix: 
+py-run-insitu-nix: 
 	bash ./launch-scripts/launch-insitu-python-local.sh 
 
 py-clean:

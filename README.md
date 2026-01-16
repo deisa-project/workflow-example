@@ -75,6 +75,16 @@ All versions can be launched using the provided shell scripts in `launch-scripts
 ```
 bash launch-scripts/launch-insitu-cpp-kokkos-local.sh
 ```
+
+The pure python simulations provide a `Makefile` for convenience:
+```
+make py-install # create the .venv using uv
+make py-run-sim # run just the gray-scott simulation using predefined args (to get a sense of the simulation)
+make py-run-insitu # run the insitu example
+```
+
+The simulation was also instrumented in `c` but it is not complete. Abstain to use it as reference.
+
 ---
 ### 📈 Output
 
@@ -98,12 +108,13 @@ Analytics Initialized
 ## 🧠 Dependencies
 
 ### For Python simulations
+You should have `uv` in your machine
 ```bash
 cd python
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+uv sync
 ```
+
+You still need to install `MPI` to run the simulation.
 
 ### For C/C++ builds
 - **CMake ≥ 3.18**
