@@ -1,7 +1,7 @@
 # Example Workflow For InSitu Data Analytics
 This repository contains a simulation based on the **Gray–Scott model** implemented in **C**, **C++**, and **Python**.  
-It demonstrates integration of **Doreisa** for in-situ analytics with CPU and GPU simulation.  
-The repository includes standalone and Doreisa-enabled variants, as well as ready-to-use launch scripts for each configuration.
+It demonstrates integration of **deisa-ray** for in-situ analytics with CPU and GPU simulation.  
+The repository includes standalone and deisa-ray-enabled variants, as well as ready-to-use launch scripts for each configuration.
 
 
 
@@ -11,10 +11,10 @@ The repository includes standalone and Doreisa-enabled variants, as well as read
 | Version | Language | Features | File(s) |
 |----------|-----------|-----------|----------|
 | **C (CPU)** | C | Basic CPU implementation with MPI | `c/src/sim.c` |
-| **C++ + Doreisa** | C++20 | Adds Doreisa in-situ analytics support | `cpp/cpu/sim_doreisa.cpp` |
-| **C++ + Kokkos (GPU)** | C++20 | GPU acceleration using Kokkos | `cpp/gpu/sim_kokkos-doreisa.cpp` |
+| **C++ + deisa-ray** | C++20 | Adds Doreisa in-situ analytics support | `cpp/cpu/sim_doreisa.cpp` |
+| **C++ + Kokkos (GPU)** | C++20 | GPU acceleration using Kokkos | `cpp/gpu/sim_kokkos-deisa-ray.cpp` |
 | **Python (CPU)** | Python 3 | CPU simulation using NumPy | `python/sim.py` |
-| **Python + Doreisa** | Python 3 | Adds in-situ analytics via Doreisa | `python/sim-doreisa.py` |
+| **Python + deisa-ray** | Python 3 | Adds in-situ analytics via Doreisa | `python/sim-doreisa.py` |
 
 ---
 
@@ -27,19 +27,19 @@ The repository includes standalone and Doreisa-enabled variants, as well as read
 │
 ├── c/
 │   └── src/
-│       └── sim.c             # Pure C implementation (CPU only, no Doreisa)
+│       └── sim.c             # Pure C implementation (CPU only, no deisa-ray)
 ├── cpp/
-│   ├── cpu/                  # C++ implementation (CPU only, Doreisa enabled)
+│   ├── cpu/                  # C++ implementation (CPU only, deisa-ray enabled)
 │   │   ├── CMakeLists.txt    
-│   │   └── sim-doreisa.cpp
-│   └── gpu/                  # C++ implementation (GPU, Doreisa enabled)
+│   │   └── sim-deisa-ray.cpp
+│   └── gpu/                  # C++ implementation (GPU, deisa-ray enabled)
 │       ├── CMakeLists.txt
-│       └── sim-kokkos-doreisa.cpp
+│       └── sim-kokkos-deisa-ray.cpp
 ├── nix/
 ├── python/
 │   ├── requirements.txt      # Python dependencies for the simulation and analytics
 │   ├── sim.py                # Python simulation
-│   └── sim-doreisa.py        # Python simulation integrated with Doreisa
+│   └── sim-deisa-ray.py        # Python simulation integrated with Doreisa
 │
 ├── launch-scripts/
 │   ├── launch-scripts.sh     # TODO
@@ -52,7 +52,7 @@ The repository includes standalone and Doreisa-enabled variants, as well as read
 
 ## 📊 In-Situ Analytics (`analytics/`)
 
-The **analytics** processes simulation data as it runs using **Doreisa’s API**.
+The **analytics** processes simulation data as it runs using **deisa-ray’s API**.
 
 ### Example: `avg.py`
 ```python
@@ -91,8 +91,8 @@ The simulation was also instrumented in `c` but it is not complete. Abstain to u
 During execution, the analytics prints progress and timing information like:
 ```
 Analytics Initialized
-[SIM, rank 1] connected to doreisa client
-[SIM, rank 0] connected to doreisa client
+[SIM, rank 1] connected to deisa-ray client
+[SIM, rank 0] connected to deisa-ray client
 [step      0] ranks=2 grid=2x1 N=512x256 local=256x256 Vsum=1.271578e+05 elapsed=0.02s GSS_time=1.38ms halo_time=0.06ms
 [ANALYTICS] Average at timestep 0: V=0.01893053523662347, U=0.9701366492501763
 [step      1] ranks=2 grid=2x1 N=512x256 local=256x256 Vsum=1.272115e+05 elapsed=0.04s GSS_time=1.24ms halo_time=0.06ms

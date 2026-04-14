@@ -10,48 +10,80 @@ import argparse
 import time
 import os
 import matplotlib
-matplotlib.use("Agg")           # headless
+
+matplotlib.use("Agg")  # headless
 import matplotlib.pyplot as plt
 import imageio.v2 as imageio
-from doreisa.simulation_node import Client
-
+from deisa.ray.bridge import Bridge
 
 
 # --------------------------------------------------------------------
 # CLI parsing
 # --------------------------------------------------------------------
 def parse_args():
-    ap = argparse.ArgumentParser(description="Gray–Scott 2D (MPI, weak-scaling oriented)")
-    ap.add_argument("--nx_local", type=int, default=256, help="local interior width (X)")
-    ap.add_argument("--ny_local", type=int, default=256, help="local interior height (Y)")
+    ap = argparse.ArgumentParser(
+        description="Gray–Scott 2D (MPI, weak-scaling oriented)"
+    )
+    ap.add_argument(
+        "--nx_local", type=int, default=256, help="local interior width (X)"
+    )
+    ap.add_argument(
+        "--ny_local", type=int, default=256, help="local interior height (Y)"
+    )
     ap.add_argument("--px", type=int, default=0, help="processes along X (columns)")
     ap.add_argument("--py", type=int, default=0, help="processes along Y (rows)")
-    ap.add_argument("--periodic", action="store_true", help="use periodic BCs in both dims")
+    ap.add_argument(
+        "--periodic", action="store_true", help="use periodic BCs in both dims"
+    )
     ap.add_argument("--steps", type=int, default=500, help="number of time steps")
     ap.add_argument("--dt", type=float, default=1.0, help="time step")
     ap.add_argument("--Du", type=float, default=0.16, help="diffusion coeff for U")
     ap.add_argument("--Dv", type=float, default=0.08, help="diffusion coeff for V")
-    ap.add_argument("--F",  type=float, default=0.060, help="feed rate")
-    ap.add_argument("--k",  type=float, default=0.062, help="kill rate")
-    ap.add_argument("--print-every", type=int, default=50, help="rank0 prints progress every N steps")
-    ap.add_argument("--seed", type=int, default=0, help="base RNG seed (per-rank offset applied)")
+    ap.add_argument("--F", type=float, default=0.060, help="feed rate")
+    ap.add_argument("--k", type=float, default=0.062, help="kill rate")
+    ap.add_argument(
+        "--print-every",
+        type=int,
+        default=50,
+        help="rank0 prints progress every N steps",
+    )
+    ap.add_argument(
+        "--seed", type=int, default=0, help="base RNG seed (per-rank offset applied)"
+    )
 
     # Seeding options
-    ap.add_argument("--seed-mode", choices=["local", "global"], default="local",
-                    help="how to place the perturbation square")
-    ap.add_argument("--seed-frac", nargs=2, type=float, default=[0.4, 0.6],
-                    help="fractional bounds (low high) of seeded square in [0,1]")
+    ap.add_argument(
+        "--seed-mode",
+        choices=["local", "global"],
+        default="local",
+        help="how to place the perturbation square",
+    )
+    ap.add_argument(
+        "--seed-frac",
+        nargs=2,
+        type=float,
+        default=[0.4, 0.6],
+        help="fractional bounds (low high) of seeded square in [0,1]",
+    )
 
     # Visualization options
-    ap.add_argument("--viz-every", type=int, default=0,
-                help="save a PNG every N steps (0 = off)")
-    ap.add_argument("--viz-field", choices=["U", "V", "both"], default="V",
-                help="which field to visualize")
-    ap.add_argument("--viz-outdir", type=str, default="frames",
-                help="directory to save frames")
-    ap.add_argument("--viz-gif", action="store_true",
-                help="assemble saved frames into out.gif (rank0 only)")
-
+    ap.add_argument(
+        "--viz-every", type=int, default=0, help="save a PNG every N steps (0 = off)"
+    )
+    ap.add_argument(
+        "--viz-field",
+        choices=["U", "V", "both"],
+        default="V",
+        help="which field to visualize",
+    )
+    ap.add_argument(
+        "--viz-outdir", type=str, default="frames", help="directory to save frames"
+    )
+    ap.add_argument(
+        "--viz-gif",
+        action="store_true",
+        help="assemble saved frames into out.gif (rank0 only)",
+    )
 
     return ap.parse_args()
 
@@ -75,8 +107,8 @@ def make_cartesian(comm_world, px, py, periodic):
 # --------------------------------------------------------------------
 def allocate_fields(ny_local, nx_local):
     shape = (ny_local + 2, nx_local + 2)  # +2 for ghosts
-    U  = np.empty(shape, dtype=np.float64)
-    V  = np.empty(shape, dtype=np.float64)
+    U = np.empty(shape, dtype=np.float64)
+    V = np.empty(shape, dtype=np.float64)
     Un = np.empty(shape, dtype=np.float64)
     Vn = np.empty(shape, dtype=np.float64)
     return U, V, Un, Vn
@@ -95,16 +127,21 @@ def seed_local_fraction(U, V, frac_lo=0.4, frac_hi=0.6, uval=0.50, vval=0.25):
     y_norm = (yy + 0.5) / nyi
     x_norm = (xx + 0.5) / nxi
 
-    mask = (y_norm > frac_lo) & (y_norm < frac_hi) & \
-           (x_norm > frac_lo) & (x_norm < frac_hi)
+    mask = (
+        (y_norm > frac_lo)
+        & (y_norm < frac_hi)
+        & (x_norm > frac_lo)
+        & (x_norm < frac_hi)
+    )
 
     Ui[mask] = uval
     Vi[mask] = vval
-    return U,V
+    return U, V
 
 
-def seed_global_fraction(U, V, coords, px, py, nx, ny,
-                         frac_lo=0.4, frac_hi=0.6, uval=0.50, vval=0.25):
+def seed_global_fraction(
+    U, V, coords, px, py, nx, ny, frac_lo=0.4, frac_hi=0.6, uval=0.50, vval=0.25
+):
     """Seed a square in *global* fractional coordinates."""
     ry, rx = coords
     NX, NY = px * nx, py * ny
@@ -119,8 +156,7 @@ def seed_global_fraction(U, V, coords, px, py, nx, ny,
     xg = (x0 + (xx + 0.5)) / NX
     yg = (y0 + (yy + 0.5)) / NY
 
-    mask = (yg > frac_lo) & (yg < frac_hi) & \
-           (xg > frac_lo) & (xg < frac_hi)
+    mask = (yg > frac_lo) & (yg < frac_hi) & (xg > frac_lo) & (xg < frac_hi)
 
     Ui[mask] = uval
     Vi[mask] = vval
@@ -143,9 +179,11 @@ def initialize(U, V, coords, rng, args, px, py):
 
     lo, hi = args.seed_frac
     if args.seed_mode == "local":
-        U,V = seed_local_fraction(U, V, lo, hi)
+        U, V = seed_local_fraction(U, V, lo, hi)
     elif args.seed_mode == "global":
-        U,V = seed_global_fraction(U, V, coords, px, py, args.nx_local, args.ny_local, lo, hi)
+        U, V = seed_global_fraction(
+            U, V, coords, px, py, args.nx_local, args.ny_local, lo, hi
+        )
 
 
 # --------------------------------------------------------------------
@@ -160,32 +198,32 @@ def apply_neumann_boundary_ghosts(cart, A):
     first_row, last_row = 1, ny - 2
     first_col, last_col = 1, nx - 2
 
-    up,   down  = cart.Shift(0, 1)  # Y-dim neighbors
+    up, down = cart.Shift(0, 1)  # Y-dim neighbors
     left, right = cart.Shift(1, 1)  # X-dim neighbors
 
     # Top boundary: no UP neighbor
     if up == MPI.PROC_NULL:
-        A[0, first_col:last_col+1] = A[1, first_col:last_col+1]
-        A[0, 0]    = A[1, 1]        # corners (cosmetic)
-        A[0, -1]   = A[1, -2]
+        A[0, first_col : last_col + 1] = A[1, first_col : last_col + 1]
+        A[0, 0] = A[1, 1]  # corners (cosmetic)
+        A[0, -1] = A[1, -2]
 
     # Bottom boundary: no DOWN neighbor
     if down == MPI.PROC_NULL:
-        A[-1, first_col:last_col+1] = A[-2, first_col:last_col+1]
-        A[-1, 0]   = A[-2, 1]
-        A[-1, -1]  = A[-2, -2]
+        A[-1, first_col : last_col + 1] = A[-2, first_col : last_col + 1]
+        A[-1, 0] = A[-2, 1]
+        A[-1, -1] = A[-2, -2]
 
     # Left boundary: no LEFT neighbor
     if left == MPI.PROC_NULL:
-        A[first_row:last_row+1, 0] = A[first_row:last_row+1, 1]
-        A[0, 0]     = A[1, 1]
-        A[-1, 0]    = A[-2, 1]
+        A[first_row : last_row + 1, 0] = A[first_row : last_row + 1, 1]
+        A[0, 0] = A[1, 1]
+        A[-1, 0] = A[-2, 1]
 
     # Right boundary: no RIGHT neighbor
     if right == MPI.PROC_NULL:
-        A[first_row:last_row+1, -1] = A[first_row:last_row+1, -2]
-        A[0, -1]    = A[1, -2]
-        A[-1, -1]   = A[-2, -2]
+        A[first_row : last_row + 1, -1] = A[first_row : last_row + 1, -2]
+        A[0, -1] = A[1, -2]
+        A[-1, -1] = A[-2, -2]
 
 
 # --------------------------------------------------------------------
@@ -201,22 +239,52 @@ def exchange_halo(cart, A):
     left, right = cart.Shift(1, 1)
 
     # rows
-    cart.Sendrecv(A[last_row, first_col:last_col+1], dest=down, sendtag=101,
-                  recvbuf=A[0, first_col:last_col+1], source=up, recvtag=101, status=status)
-    cart.Sendrecv(A[first_row, first_col:last_col+1], dest=up, sendtag=102,
-                  recvbuf=A[ny-1, first_col:last_col+1], source=down, recvtag=102, status=status)
+    cart.Sendrecv(
+        A[last_row, first_col : last_col + 1],
+        dest=down,
+        sendtag=101,
+        recvbuf=A[0, first_col : last_col + 1],
+        source=up,
+        recvtag=101,
+        status=status,
+    )
+    cart.Sendrecv(
+        A[first_row, first_col : last_col + 1],
+        dest=up,
+        sendtag=102,
+        recvbuf=A[ny - 1, first_col : last_col + 1],
+        source=down,
+        recvtag=102,
+        status=status,
+    )
 
     # cols
     col_len = ny - 2
-    send_right = np.ascontiguousarray(A[first_row:last_row+1, last_col])
-    recv_left  = np.empty(col_len, dtype=A.dtype)
-    cart.Sendrecv(sendbuf = send_right, dest=right, sendtag=201, recvbuf=recv_left,  source=left, recvtag=201, status=status)
-    A[first_row:last_row+1, 0] = recv_left
+    send_right = np.ascontiguousarray(A[first_row : last_row + 1, last_col])
+    recv_left = np.empty(col_len, dtype=A.dtype)
+    cart.Sendrecv(
+        sendbuf=send_right,
+        dest=right,
+        sendtag=201,
+        recvbuf=recv_left,
+        source=left,
+        recvtag=201,
+        status=status,
+    )
+    A[first_row : last_row + 1, 0] = recv_left
 
-    send_left  = np.ascontiguousarray(A[first_row:last_row+1, first_col])
+    send_left = np.ascontiguousarray(A[first_row : last_row + 1, first_col])
     recv_right = np.empty(col_len, dtype=A.dtype)
-    cart.Sendrecv(sendbuf=send_left, dest=left, sendtag=202, recvbuf=recv_right, source=right, recvtag=202, status=status)
-    A[first_row:last_row+1, nx-1] = recv_right
+    cart.Sendrecv(
+        sendbuf=send_left,
+        dest=left,
+        sendtag=202,
+        recvbuf=recv_right,
+        source=right,
+        recvtag=202,
+        status=status,
+    )
+    A[first_row : last_row + 1, nx - 1] = recv_right
 
 
 # --------------------------------------------------------------------
@@ -238,17 +306,9 @@ def step_gray_scott(U, V, Un, Vn, Du, Dv, F, k, dt):
     Ui = U[1:-1, 1:-1]
     Vi = V[1:-1, 1:-1]
 
-    Lu = (-4.0 * Ui
-          + U[1:-1, 0:-2]
-          + U[1:-1, 2:  ]
-          + U[0:-2, 1:-1]
-          + U[2:  , 1:-1])
+    Lu = -4.0 * Ui + U[1:-1, 0:-2] + U[1:-1, 2:] + U[0:-2, 1:-1] + U[2:, 1:-1]
 
-    Lv = (-4.0 * Vi
-          + V[1:-1, 0:-2]
-          + V[1:-1, 2:  ]
-          + V[0:-2, 1:-1]
-          + V[2:  , 1:-1])
+    Lv = -4.0 * Vi + V[1:-1, 0:-2] + V[1:-1, 2:] + V[0:-2, 1:-1] + V[2:, 1:-1]
 
     uvv = Ui * Vi * Vi
     Un[1:-1, 1:-1] = Ui + dt * (Du * Lu - uvv + F * (1.0 - Ui))
@@ -265,8 +325,8 @@ def gather_global_field(cart, A_interior, nx, ny, px, py):
     coords = cart.Get_coords(rank)
 
     # Gather tiles and their coords to rank 0
-    tiles  = cart.gather(np.ascontiguousarray(A_interior), root=0)
-    allcs  = cart.gather(coords, root=0)
+    tiles = cart.gather(np.ascontiguousarray(A_interior), root=0)
+    allcs = cart.gather(coords, root=0)
 
     if rank != 0:
         return None
@@ -276,7 +336,7 @@ def gather_global_field(cart, A_interior, nx, ny, px, py):
 
     # Place each tile into its global slot using its (ry, rx)
     for tile, (ry, rx) in zip(tiles, allcs):
-        G[ry*ny:(ry+1)*ny, rx*nx:(rx+1)*nx] = tile
+        G[ry * ny : (ry + 1) * ny, rx * nx : (rx + 1) * nx] = tile
     return G
 
 
@@ -313,13 +373,15 @@ def save_frame(step, cart, U, V, nx, ny, px, py, which="V", outdir="frames"):
         ims.append(axes[1].imshow(Vg, origin="lower", interpolation="nearest"))
         axes[1].set_title("V")
         for ax in axes:
-            ax.set_xticks([]); ax.set_yticks([])
+            ax.set_xticks([])
+            ax.set_yticks([])
     else:
         fig, ax = plt.subplots(1, 1, figsize=(5, 4), constrained_layout=True)
         data = Ug if which == "U" else Vg
         im = ax.imshow(data, origin="lower", interpolation="nearest")
         ax.set_title(which)
-        ax.set_xticks([]); ax.set_yticks([])
+        ax.set_xticks([])
+        ax.set_yticks([])
 
     fname = os.path.join(outdir, f"step_{step:06d}.png")
     fig.savefig(fname, dpi=120)
@@ -353,11 +415,6 @@ def main():
     rank = comm.Get_rank()
     size = comm.Get_size()
 
-# --- Doreisa integration ---
-    client = Client()
-    print(f"[SIM, rank {rank}] connected to doreisa client", flush = True)
-# -------------------------
-
     cart, (py, px), coords = make_cartesian(comm, args.px, args.py, args.periodic)
     nx, ny = args.nx_local, args.ny_local
     NX, NY = px * nx, py * ny
@@ -371,16 +428,38 @@ def main():
 
     # after initialize
     if args.viz_every and args.viz_every > 0:
-        save_frame(0, cart, U, V, nx, ny, px, py,
-               which=args.viz_field, outdir=args.viz_outdir)
+        save_frame(
+            0, cart, U, V, nx, ny, px, py, which=args.viz_field, outdir=args.viz_outdir
+        )
 
+    # --- Deisa-Ray integration ---
+
+    arrays_md = {
+        "U": {
+            "chunk_shape": (py, px),
+            "nb_chunks_per_dim": (2, 1),
+            "nb_chunks_of_node": size,
+            "dtype": np.int32,
+            "chunk_position": tuple(coords),
+        },
+        "V": {
+            "chunk_shape": (py, px),
+            "nb_chunks_per_dim": (2, 1),
+            "nb_chunks_of_node": size,
+            "dtype": np.int32,
+            "chunk_position": tuple(coords),
+        },
+    }
+
+    client = Bridge(bridge_id=rank, arrays_metadata=arrays_md, comm=comm)
+    print(f"[SIM, rank {rank}] connected to deisa-ray bridge", flush=True)
+    # -------------------------
 
     t0 = time.time()
     for step in range(0, args.steps):
-
         halo_start = time.perf_counter()
         update_ghosts(cart, U, args.periodic)
-        update_ghosts(cart, V, args.periodic)   
+        update_ghosts(cart, V, args.periodic)
         halo_end = time.perf_counter()
 
         gss_start = time.perf_counter()
@@ -390,14 +469,24 @@ def main():
         U, Un = Un, U
         V, Vn = Vn, V
 
-# --- Doreisa integration ---
-        client.add_chunk("U", tuple(coords), (py,px), size, step, U[1:-1,1:-1], store_externally=False)
-        client.add_chunk("V", tuple(coords), (py,px), size, step, V[1:-1,1:-1], store_externally=False)
-# -------------------------
+        # --- Doreisa integration ---
+        client.send(array_name="U", timestep=step, chunk=U[1:-1, 1:-1])
+        client.send(array_name="V", timestep=step, chunk=V[1:-1, 1:-1])
+        # -------------------------
 
         if args.viz_every and (step % args.viz_every == 0):
-            save_frame(step, cart, U, V, nx, ny, px, py,
-                   which=args.viz_field, outdir=args.viz_outdir)
+            save_frame(
+                step,
+                cart,
+                U,
+                V,
+                nx,
+                ny,
+                px,
+                py,
+                which=args.viz_field,
+                outdir=args.viz_outdir,
+            )
 
         if args.print_every and (step % args.print_every == 0):
             comm.Barrier()
@@ -405,14 +494,16 @@ def main():
             global_sum = comm.allreduce(local_sum, op=MPI.SUM)
             if rank == 0:
                 elapsed = time.time() - t0
-                gss_elapsed = (gss_end - gss_start)*1e3
-                halo_elapsed = (halo_end - halo_start)*1e3
-                print(f"[SIM, step {step:6d}] ranks={size} grid={py}x{px} "
-                      f"N={NY}x{NX} local={ny}x{nx} Vsum={global_sum:.6e} "
-                      f"elapsed={elapsed:.2f}s "
-                      f"GSS_time={gss_elapsed:.2f}ms "
-                      f"halo_time={halo_elapsed:.2f}ms"
-                      )
+                gss_elapsed = (gss_end - gss_start) * 1e3
+                halo_elapsed = (halo_end - halo_start) * 1e3
+                print(
+                    f"[SIM, step {step:6d}] ranks={size} grid={py}x{px} "
+                    f"N={NY}x{NX} local={ny}x{nx} Vsum={global_sum:.6e} "
+                    f"elapsed={elapsed:.2f}s "
+                    f"GSS_time={gss_elapsed:.2f}ms "
+                    f"halo_time={halo_elapsed:.2f}ms"
+                )
+    client.close(timestep=args.steps + 1)
 
     comm.Barrier()
     if rank == 0:

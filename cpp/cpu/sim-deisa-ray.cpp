@@ -6,7 +6,7 @@ A fully distributed Gray–Scott model implemented with:
 
   • **MPI** for domain decomposition and halo exchange
   • **Kokkos** for portable CPU/GPU parallelism
-  • **PyBind11** for integration with the Python-based Doreisa framework
+  • **PyBind11** for integration with the Python-based Deisa-Ray framework
 
 The implementation mirrors the logic of the Python mpi4py version:
   - same halo exchange ordering (U then V)
@@ -513,18 +513,6 @@ int main(int argc, char **argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    // ---- Doreisa integration ----
-    py::scoped_interpreter guard{};
-    py::dict locals;
-    locals["rank"] = rank;
-
-    py::module_ sim_node = py::module_::import("doreisa.simulation_node");
-    py::object Client = sim_node.attr("Client");
-    py::object client_instance = Client();
-    py::exec("print(f'[SIM, rank {rank}] connected to doreisa client')",
-             py::globals(), locals);
-    // -----------------------------
-
     Config cfg;
     parse_args(&cfg, argc, argv, rank);
 
@@ -552,6 +540,43 @@ int main(int argc, char **argv) {
     update_ghosts(cart, U.data(), nx, ny, cfg.periodic);
     update_ghosts(cart, V.data(), nx, ny, cfg.periodic);
 
+    // ---- Deisa-Ray integration ----
+    py::scoped_interpreter guard{};
+
+    // Import modules
+    py::module_ sim_node = py::module_::import("deisa.ray.bridge");
+    py::object Bridge = sim_node.attr("Bridge");
+
+    // Build arrays_md dict
+    py::dict arrays_md;
+
+    // Helper to build metadata dict for each field
+    auto make_md = [&](const char *name) {
+      py::dict md;
+      md["chunk_shape"] = py::make_tuple(cfg.py, cfg.px);
+      md["nb_chunks_per_dim"] = py::make_tuple(2, 1);
+      md["nb_chunks_of_node"] = size;
+      md["dtype"] = py::module_::import("numpy").attr("int32");
+      md["chunk_position"] = py::make_tuple(ry, rx);
+      return md;
+    };
+
+    arrays_md["U"] = make_md("U");
+    arrays_md["V"] = make_md("V");
+
+    // Import mpi4py communicator
+    py::object mpi4py = py::module_::import("mpi4py.MPI");
+    py::object py_comm = mpi4py.attr("COMM_WORLD");
+
+    // Create Bridge instance
+    py::object bridge_instance = Bridge(py::arg("bridge_id") = rank,
+                                        py::arg("arrays_metadata") = arrays_md,
+                                        py::arg("comm") = py_comm);
+
+    // Print message
+    py::print("[SIM, rank", rank, "] connected to deisa-ray bridge");
+    // --------------------------------
+
     if (cfg.viz_every > 0)
       save_frame(0, cart, U.data(), V.data(), nx, ny, cfg.px, cfg.py,
                  cfg.viz_field, cfg.viz_outdir, cfg.viz_vmin, cfg.viz_vmax);
@@ -571,28 +596,29 @@ int main(int argc, char **argv) {
       std::swap(U, Un);
       std::swap(V, Vn);
 
-      // ---- Doreisa integration ----
+      // ---- Deisa-Ray integration ----
 
-      py::tuple coords_tuple = py::make_tuple(coords[0], coords[1]);
-
+      // Wrap C++ arrays (no copy)
       py::array_t<double> U_py({ny + 2, nx + 2}, U.data());
       py::array_t<double> V_py({ny + 2, nx + 2}, V.data());
 
+      // Extract inner domain: U[1:-1, 1:-1]
       py::object Uslice = U_py.attr("__getitem__")(
           py::make_tuple(py::slice(1, -1, 1), py::slice(1, -1, 1)));
 
       py::object Vslice = V_py.attr("__getitem__")(
           py::make_tuple(py::slice(1, -1, 1), py::slice(1, -1, 1)));
 
-      client_instance.attr("add_chunk")(
-          "U", coords_tuple, py::make_tuple(cfg.py, cfg.px), size, step, Uslice,
-          py::arg("store_externally") = false);
+      // Call Bridge.send(...)
+      bridge_instance.attr("send")(py::arg("array_name") = "U",
+                                   py::arg("timestep") = step,
+                                   py::arg("chunk") = Uslice);
 
-      client_instance.attr("add_chunk")(
-          "V", coords_tuple, py::make_tuple(cfg.py, cfg.px), size, step, Vslice,
-          py::arg("store_externally") = false);
+      bridge_instance.attr("send")(py::arg("array_name") = "V",
+                                   py::arg("timestep") = step,
+                                   py::arg("chunk") = Vslice);
 
-      // -----------------------------
+      // --------------------------------
 
       if (cfg.viz_every > 0 && (step % cfg.viz_every == 0))
         save_frame(step, cart, U.data(), V.data(), nx, ny, cfg.px, cfg.py,
@@ -618,6 +644,10 @@ int main(int argc, char **argv) {
         }
       }
     }
+
+    // ---- Deisa-Ray integration ----
+    bridge_instance.attr("close")(py::arg("timestep") = cfg.steps);
+    // --------------------------------
 
     MPI_Barrier(cart);
     if (rank == 0) {

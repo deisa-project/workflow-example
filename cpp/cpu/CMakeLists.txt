@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(sim-doreisa LANGUAGES CXX)
+project(sim-deisa-ray LANGUAGES CXX)
 
 # ---- Options ----
 set(CMAKE_CXX_STANDARD 20)
@@ -12,17 +12,17 @@ find_package(MPI REQUIRED)
 find_package(pybind11 REQUIRED)
 
 # ---- Source ----
-add_executable(sim-doreisa sim-doreisa.cpp)
+add_executable(sim-deisa-ray sim-deisa-ray.cpp)
 
 # ---- Include and link ----
-target_link_libraries(sim-doreisa
+target_link_libraries(sim-deisa-ray
     PRIVATE
         MPI::MPI_CXX
         pybind11::embed   # for embedding Python in C++
 )
 
 # ---- Compiler warnings ----
-target_compile_options(sim-doreisa PRIVATE
+target_compile_options(sim-deisa-ray PRIVATE
     -Wall -Wextra -Wpedantic
 )
 
