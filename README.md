@@ -11,10 +11,10 @@ The repository includes standalone and deisa-ray-enabled variants, as well as re
 | Version | Language | Features | File(s) |
 |----------|-----------|-----------|----------|
 | **C (CPU)** | C | Basic CPU implementation with MPI | `c/src/sim.c` |
-| **C++ + deisa-ray** | C++20 | Adds Doreisa in-situ analytics support | `cpp/cpu/sim_doreisa.cpp` |
-| **C++ + Kokkos (GPU)** | C++20 | GPU acceleration using Kokkos | `cpp/gpu/sim_kokkos-deisa-ray.cpp` |
+| **C++ + deisa-ray** | C++20 | Adds Deisa-Ray in-situ analytics support | `cpp/cpu/sim-deisa-ray.cpp` |
+| **C++ + Kokkos (GPU)** | C++20 | GPU acceleration using Kokkos | `cpp/gpu/sim-kokkos-deisa-ray.cpp` |
 | **Python (CPU)** | Python 3 | CPU simulation using NumPy | `python/sim.py` |
-| **Python + deisa-ray** | Python 3 | Adds in-situ analytics via Doreisa | `python/sim-doreisa.py` |
+| **Python + deisa-ray** | Python 3 | Adds in-situ analytics via Deisa-Ray | `python/sim-deisa-ray.py` |
 
 ---
 
@@ -39,7 +39,7 @@ The repository includes standalone and deisa-ray-enabled variants, as well as re
 ├── python/
 │   ├── requirements.txt      # Python dependencies for the simulation and analytics
 │   ├── sim.py                # Python simulation
-│   └── sim-deisa-ray.py        # Python simulation integrated with Doreisa
+│   └── sim-deisa-ray.py        # Python simulation integrated with Deisa-Ray
 │
 ├── launch-scripts/
 │   ├── launch-scripts.sh     # TODO

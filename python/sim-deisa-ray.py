@@ -469,7 +469,7 @@ def main():
         U, Un = Un, U
         V, Vn = Vn, V
 
-        # --- Doreisa integration ---
+        # --- Deisa-Ray integration ---
         client.send(array_name="U", timestep=step, chunk=U[1:-1, 1:-1])
         client.send(array_name="V", timestep=step, chunk=V[1:-1, 1:-1])
         # -------------------------
