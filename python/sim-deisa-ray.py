@@ -436,22 +436,18 @@ def main():
 
     arrays_md = {
         "U": {
+            "global_shape": (2 * py, px),
             "chunk_shape": (py, px),
-            "nb_chunks_per_dim": (2, 1),
-            "nb_chunks_of_node": size,
-            "dtype": np.int32,
             "chunk_position": tuple(coords),
         },
         "V": {
+            "global_shape": (2 * py, px),
             "chunk_shape": (py, px),
-            "nb_chunks_per_dim": (2, 1),
-            "nb_chunks_of_node": size,
-            "dtype": np.int32,
             "chunk_position": tuple(coords),
         },
     }
 
-    client = Bridge(bridge_id=rank, arrays_metadata=arrays_md, comm=comm)
+    client = Bridge(comm=comm, arrays_metadata=arrays_md)
     print(f"[SIM, rank {rank}] connected to deisa-ray bridge", flush=True)
     # -------------------------
 
@@ -470,8 +466,8 @@ def main():
         V, Vn = Vn, V
 
         # --- Deisa-Ray integration ---
-        client.send(array_name="U", timestep=step, chunk=U[1:-1, 1:-1])
-        client.send(array_name="V", timestep=step, chunk=V[1:-1, 1:-1])
+        client.send(array_name="U", chunk=U[1:-1, 1:-1], timestep=step)
+        client.send(array_name="V", chunk=V[1:-1, 1:-1], timestep=step)
         # -------------------------
 
         if args.viz_every and (step % args.viz_every == 0):

@@ -583,10 +583,8 @@ int main(int argc, char **argv) {
     // Helper to build metadata dict for each field
     auto make_md = [&](const char *name) {
       py::dict md;
+      md["global_shape"] = py::make_tuple(2 * cfg.py, cfg.px);
       md["chunk_shape"] = py::make_tuple(cfg.py, cfg.px);
-      md["nb_chunks_per_dim"] = py::make_tuple(2, 1);
-      md["nb_chunks_of_node"] = size;
-      md["dtype"] = py::module_::import("numpy").attr("int32");
       md["chunk_position"] = py::make_tuple(ry, rx);
       return md;
     };
@@ -599,8 +597,7 @@ int main(int argc, char **argv) {
     py::object py_comm = mpi4py.attr("COMM_WORLD");
 
     // Create Bridge instance
-    py::object bridge_instance = Bridge(py::arg("bridge_id") = rank,
-                                        py::arg("arrays_metadata") = arrays_md,
+    py::object bridge_instance = Bridge(py::arg("arrays_metadata") = arrays_md,
                                         py::arg("comm") = py_comm);
 
     // Print message

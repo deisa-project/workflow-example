@@ -9,12 +9,13 @@ This script demonstrates how to:
 
 """
 
-import dask.array as da
-import deisa.ray as deisa
-from deisa.ray.types import DeisaArray, WindowSpec
-from deisa.ray.window_handler import Deisa
+from deisa.ray import Deisa
+from deisa.ray.types import DeisaArray
+
+d = Deisa()
 
 
+@d.register("U", "V")
 def simulation_callback(V: list[DeisaArray], U: list[DeisaArray]):
     """
     Callback function invoked by the simulation at each timestep.
@@ -37,8 +38,8 @@ def simulation_callback(V: list[DeisaArray], U: list[DeisaArray]):
 
     """
     # Compute the average
-    Vavg = V[0].dask.mean().compute()
-    Uavg = U[0].dask.mean().compute()
+    Vavg = V[0].mean().compute()
+    Uavg = U[0].mean().compute()
 
     # Print formatted analytics information for the current step
     print(f"[ANALYTICS] Average at timestep {U[0].t}: V={Vavg}, U={Uavg}", flush=True)
@@ -48,20 +49,8 @@ def simulation_callback(V: list[DeisaArray], U: list[DeisaArray]):
 
 # Initialize the deisa-ray head node
 # and registers this process as the analytics controller.
-deisa.config.enable_experimental_distributed_scheduling(True)
-d = Deisa()
 
 print("Analytics Initialized", flush=True)
 
-
 # Invoke the `simulation_callback` at each timestep
-# Respect the configured `window_size` for each array
-# Stop after `max_iterations` timesteps
-d.register_callback(
-    simulation_callback,
-    [
-        WindowSpec("V"),
-        WindowSpec("U"),
-    ],
-)
 d.execute_callbacks()
